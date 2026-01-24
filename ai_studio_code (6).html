@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拼图Ultimate (Pro Max)</title>
+    <!-- PWA设置 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#F2F2F7">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐋</text></svg>">
+    
+    <!-- 依赖库 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    
+    <!-- 本地样式 -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="antialiased">
+
+    <!-- 拖拽遮罩 -->
+    <div id="dragOverlay"><div class="text-[#007AFF] font-bold text-2xl bg-white/90 px-6 py-3 rounded-xl shadow-lg">松手释放图片</div></div>
+
+    <!-- 头部导航 -->
+    <header class="sticky top-0 z-50 bg-[#F2F2F7]/90 backdrop-blur-xl border-b border-gray-200/50 supports-[backdrop-filter]:bg-[#F2F2F7]/60">
+        <div class="max-w-2xl mx-auto px-5 py-3 flex justify-between items-center h-[52px]">
+            <h1 class="text-[22px] font-bold tracking-tight text-black">拼图排序<span class="text-xs font-normal text-white bg-black px-1.5 py-0.5 rounded ml-1">Ultimate</span></h1>
+            <div class="flex items-center gap-2">
+                <button id="resetBtn" class="bg-gray-100 text-gray-500 text-[13px] font-bold px-3 py-1.5 rounded-full shadow-sm active:bg-gray-200 transition flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    重置
+                </button>
+                <button id="addBtn" class="bg-white text-[#007AFF] text-[15px] font-bold px-4 py-1.5 rounded-full shadow-sm active:bg-gray-100 transition flex items-center gap-1">
+                    <svg class="w-4 h-4 stroke-[3px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+                    添加
+                </button>
+            </div>
+            <input type="file" id="fileInput" multiple accept="image/*" class="hidden">
+            <input type="file" id="replaceInput" accept="image/*" class="hidden">
+            <input type="file" id="stickerInput" accept="image/*" class="hidden">
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto px-4 pt-4 relative">
+        <!-- 进度条 Toast -->
+        <div id="progressToast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] transition-all duration-200 cubic-bezier(0.34, 1.56, 0.64, 1) -translate-y-[200%] opacity-0 pointer-events-none">
+            <div class="bg-white/95 backdrop-blur-xl text-gray-900 rounded-full shadow-2xl flex items-center py-3 pl-6 pr-4 gap-3 border border-gray-200/50 min-w-[200px]">
+                <div class="flex-1 flex flex-col justify-center min-w-0">
+                    <div class="flex items-center justify-center gap-2">
+                        <span id="progressText" class="text-[15px] font-bold leading-tight truncate text-[#007AFF]">准备中...</span>
+                    </div>
+                </div>
+                <button id="cancelProcessBtn" class="pointer-events-auto w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 active:scale-90 transition text-gray-500 hover:text-[#FF3B30] shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 图片列表 -->
+        <div class="ios-card">
+            <details class="group" open>
+                <summary class="flex justify-between items-center p-4 bg-white cursor-pointer select-none active:bg-gray-50 transition">
+                    <span class="text-[13px] text-gray-500 uppercase font-medium pl-1">
+                        已导入 <span id="countBadge">0</span> 张 
+                        <span class="text-[10px] text-[#007AFF] bg-[#007AFF]/10 px-1.5 py-0.5 rounded ml-2 font-bold">支持长按拖拽排序</span>
+                    </span>
+                    <div class="flex items-center gap-3">
+                        <button id="clearBtn" class="text-[#FF3B30] text-[13px] active:opacity-50 transition hidden">清空</button>
+                        <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </summary>
+                <div class="p-4 pt-0 border-t border-gray-100">
+                    <div id="imageGrid" class="grid grid-cols-4 gap-2 overflow-y-auto max-h-[220px] min-h-[100px] no-scrollbar touch-pan-y mt-4">
+                        <div id="emptyState" class="col-span-full flex flex-col items-center justify-center py-8 space-y-3">
+                            <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            </div>
+                            <span class="text-gray-400 text-sm">导入图片 (点击可替换/长按拖拽)</span>
+                        </div>
+                    </div>
+                    <div id="duplicateAlert" class="hidden mt-3 bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-xs text-yellow-700 flex items-start gap-2">
+                        <span class="font-bold">发现重复图片：</span> <span id="dupCount">0</span> 张。
+                        <button id="removeDupBtn" class="underline text-yellow-800 font-bold ml-1">一键去重</button>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- 单元格设置 -->
+        <div class="mb-2 pl-4 text-[13px] text-gray-500 uppercase font-medium">布局设置</div>
+        <div class="ios-card">
+            <details class="group">
+                <summary class="flex items-center justify-between p-4 bg-white cursor-pointer select-none active:bg-gray-50 transition">
+                    <div>
+                        <div class="text-[17px] font-bold">单元格与间距</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">设置画布比例、留白间隙</div>
+                    </div>
+                    <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </summary>
+                <div class="divide-y divide-gray-200 border-t border-gray-100">
+                    <div class="p-4 bg-white active:bg-gray-50 transition relative">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[17px]">画布比例</span>
+                            <div class="flex items-center gap-2">
+                                <select id="aspectRatio" class="text-[#007AFF] text-[17px] pr-6 bg-transparent focus:outline-none text-right appearance-none cursor-pointer dir-rtl">
+                                    <option value="0.5625">9:16 手机全屏</option>
+                                    <option value="0.75">3:4 海报</option>
+                                    <option value="1">1:1 正方形</option>
+                                    <option value="1.333">4:3 照片</option>
+                                    <option value="custom">自定义...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="customRatioBox" class="hidden p-4 bg-gray-50 flex items-center justify-end gap-3 border-t border-gray-100">
+                        <input type="number" id="customW" placeholder="宽" class="bg-white border rounded px-2 py-1 text-center w-20 text-sm" value="1000">
+                        <span class="text-gray-400">:</span>
+                        <input type="number" id="customH" placeholder="高" class="bg-white border rounded px-2 py-1 text-center w-20 text-sm" value="1500">
+                    </div>
+                    <div class="p-4 bg-white active:bg-gray-50 transition">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[17px]">图片间隙</span>
+                            <span id="gapValueDisplay" class="text-[#007AFF] font-bold text-[15px]">0px</span>
+                        </div>
+                        <input type="range" id="gap" min="0" max="100" value="0" step="1">
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- 序号设置 (包含实时预览) -->
+        <div class="mb-2 pl-4 text-[13px] text-gray-500 uppercase font-medium">序号标注</div>
+        <div class="ios-card ios-divide">
+            <div class="flex items-center justify-between p-4 bg-white">
+                <span class="text-[17px]">显示序号</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="showNum" checked class="sr-only peer">
+                    <div class="w-[51px] h-[31px] bg-[#E9E9EA] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[27px] after:w-[27px] after:shadow-sm after:transition-all peer-checked:bg-[#34C759]"></div>
+                </label>
+            </div>
+            <details class="group">
+                <summary class="flex items-center justify-between p-4 bg-white cursor-pointer select-none active:bg-gray-50 transition">
+                    <div>
+                        <div class="text-[17px] text-[#007AFF]">序号详细设置</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">实时预览、字重、描边、透明度</div>
+                    </div>
+                    <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </summary>
+                
+                <div class="divide-y divide-gray-200 border-t border-gray-100">
+                    <!-- 实时预览区域 -->
+                    <div class="p-4 bg-gray-50 flex flex-col items-center justify-center border-b border-gray-100">
+                         <div class="text-[10px] text-gray-400 mb-2 uppercase tracking-wider">实时效果预览 (点击放大)</div>
+                         <div id="fontPreviewContainer" class="relative w-full h-[80px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden cursor-pointer flex items-center justify-center">
+                             <canvas id="fontPreviewCanvas" class="w-full h-full object-contain"></canvas>
+                         </div>
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-white">
+                        <span class="text-[17px]">起始数值</span>
+                        <input type="number" id="startNumber" value="1" class="text-right text-[#007AFF] text-[17px] focus:outline-none w-20 bg-transparent rounded px-0 py-2 input-touch-fix" placeholder="1">
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-4 bg-white">
+                        <span class="text-[17px]">字号大小</span>
+                        <input type="number" id="fontSize" value="350" class="text-right text-[#007AFF] text-[17px] focus:outline-none w-20 bg-transparent rounded px-0 py-2 input-touch-fix" placeholder="350">
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-white">
+                        <span class="text-[17px]">字体粗细</span>
+                        <select id="fontWeightSelect" class="text-[#007AFF] text-[17px] pr-6 bg-transparent focus:outline-none appearance-none dir-rtl text-right">
+                            <option value="300">细体 (Light)</option>
+                            <option value="400">常规 (Regular)</option>
+                            <option value="bold" selected>粗体 (Bold)</option>
+                            <option value="900">特粗 (Black)</option>
+                            <option value="custom">自定义...</option>
+                        </select>
+                    </div>
+                    <div id="customWeightBox" class="hidden p-4 bg-gray-50">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1"><span>100</span><span>900</span></div>
+                        <input type="range" id="customWeightSlider" min="100" max="900" step="100" value="700">
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-white">
+                         <div class="flex items-center gap-2">
+                            <span class="text-[17px]">不透明度</span>
+                            <span id="fontOpacityDisplay" class="text-xs text-gray-400">100%</span>
+                        </div>
+                        <div class="w-32">
+                            <input type="range" id="fontOpacity" min="0" max="100" value="100" step="5">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-white">
+                        <span class="text-[17px]">字体颜色</span>
+                        <input type="color" id="fontColor" value="#FFFFFF" class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
+                    </div>
+
+                     <div class="flex items-center justify-between p-4 bg-white">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[17px]">描边</span>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" id="enableStroke" checked class="accent-[#34C759] w-4 h-4">
+                            </label>
+                        </div>
+                        <input type="color" id="fontStrokeColor" value="#000000" class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-white">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[17px]">阴影</span>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" id="enableShadow" checked class="accent-[#34C759] w-4 h-4">
+                            </label>
+                        </div>
+                        <input type="color" id="fontShadowColor" value="#000000" class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-white">
+                        <span class="text-[17px]">字体类型</span>
+                        <select id="fontFamily" class="text-[#007AFF] text-[17px] pr-6 bg-transparent focus:outline-none appearance-none dir-rtl text-right w-40">
+                            <option value="sans-serif">默认 (无衬线)</option>
+                            <option value="'Heiti SC', 'Microsoft YaHei', sans-serif">黑体</option>
+                            <option value="'Songti SC', 'SimSun', serif">宋体</option>
+                            <option value="'KaiTi', '楷体', serif">楷体</option>
+                            <option value="'Times New Roman', serif">Times New Roman</option>
+                            <option value="cursive">手写风</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-white">
+                        <span class="text-[17px]">位置</span>
+                        <select id="fontPos" class="text-[#007AFF] text-[17px] pr-6 bg-transparent focus:outline-none appearance-none dir-rtl">
+                            <option value="bottom-center">底部居中</option>
+                            <option value="bottom-left">底部左侧</option>
+                            <option value="bottom-right">底部右侧</option>
+                            <option value="center">正中间</option>
+                            <option value="top-left">左上角</option>
+                            <option value="top-right">右上角</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- 导出设置 -->
+        <div class="mb-2 pl-4 text-[13px] text-gray-500 uppercase font-medium">导出设置</div>
+        <div class="ios-card">
+             <div class="p-4 bg-white border-b border-gray-100">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                         <label class="text-[11px] text-gray-500 block mb-1">列数 (Columns)</label>
+                         <input type="number" id="cols" value="3" class="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center text-sm font-bold text-[#007AFF] focus:border-[#007AFF] outline-none input-touch-fix">
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                         <label class="text-[11px] text-gray-500 block mb-1">每组行数 (Rows)</label>
+                         <input type="number" id="group_rows" value="3" class="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center text-sm font-bold text-[#007AFF] focus:border-[#007AFF] outline-none input-touch-fix">
+                    </div>
+                </div>
+                <div id="group_hint" class="mt-3 text-[11px] bg-[#007AFF]/5 text-[#007AFF] border border-[#007AFF]/20 p-2 rounded flex items-center gap-2">
+                    <span class="font-bold">Ready</span> <span>自动计算中...</span>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-white">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[17px] font-bold text-gray-800">画质 (Quality)</span>
+                    <div class="flex items-center gap-2">
+                         <div class="relative w-14">
+                            <input type="number" id="customQ_unified" min="10" max="100" value="50" class="bg-gray-100 rounded px-1 py-1 text-center w-full text-[15px] font-bold text-[#007AFF] outline-none input-touch-fix">
+                        </div>
+                        <span class="text-xs text-gray-500 mr-1">%</span>
+                    </div>
+                </div>
+                 <div class="text-[10px] text-gray-400 leading-tight">
+                    * 默认50%平衡画质与体积。建议 30-60%。
+                </div>
+            </div>
+        </div>
+
+        <!-- 覆盖层/水印设置 (独立板块) -->
+        <div class="mb-2 pl-4 text-[13px] text-gray-500 uppercase font-medium">水印与覆盖层</div>
+        <div class="ios-card">
+            <details class="group">
+                <summary class="flex items-center justify-between p-4 bg-white cursor-pointer select-none active:bg-gray-50 transition">
+                    <div>
+                        <div class="text-[17px] font-bold">全局纹理 / 水印</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">添加Logo或统一底纹</div>
+                    </div>
+                     <div class="flex gap-2 items-center">
+                        <button id="addOverlayBtn" class="text-[#007AFF] text-[13px] font-bold bg-[#007AFF]/10 px-3 py-1 rounded-full active:bg-[#007AFF]/20 transition mr-2">
+                            + 选择图片
+                        </button>
+                        <input type="file" id="overlayInput" accept="image/*" class="hidden">
+                        <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </summary>
+                
+                <div class="divide-y divide-gray-200 border-t border-gray-100 p-4">
+                     <div id="overlayInfoBox" class="hidden bg-gray-50 rounded-lg p-2 mb-3 flex items-center justify-between border border-gray-100">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <img id="overlayThumb" class="w-8 h-8 rounded object-cover border border-gray-200 bg-white">
+                            <span id="overlayName" class="text-xs text-gray-500 truncate max-w-[150px]">filename.png</span>
+                        </div>
+                        <button id="clearOverlayBtn" class="text-gray-400 hover:text-[#FF3B30] px-2">✕</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[11px] text-gray-500 block mb-1">混合模式</label>
+                            <select id="overlayMode" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-gray-700 outline-none">
+                                <option value="source-over">标准 (正常)</option>
+                                <option value="multiply">正片叠底</option>
+                                <option value="screen">滤色</option>
+                                <option value="overlay">覆盖</option>
+                                <option value="soft-light">柔光</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-gray-500 block mb-1">不透明度</label>
+                            <div class="flex items-center gap-2">
+                                <input type="range" id="overlayOpacityRange" min="0" max="1" step="0.01" value="0.5" class="flex-1 h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer">
+                                <span id="overlayOpacityVal" class="text-xs font-bold text-[#007AFF] w-8 text-right">0.5</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- 结果区域 -->
+        <div id="resultArea" class="hidden pb-10">
+            <div class="ios-card">
+                <details class="group" open id="resultDetails">
+                    <summary class="flex items-center justify-between p-4 bg-white cursor-pointer select-none active:bg-gray-50 transition">
+                        <div>
+                            <div class="text-[17px] font-bold text-[#34C759]">生成结果</div>
+                            <div class="text-[10px] text-gray-400 mt-0.5">预览与下载</div>
+                        </div>
+                        <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </summary>
+                    <div class="border-t border-gray-100 p-4">
+                        <div id="resultScrollContainer" class="max-h-[50vh] overflow-y-auto bg-gray-50/50 rounded-lg p-2 mb-4">
+                            <div id="seamlessContainer" class="w-full flex flex-col bg-white shadow-sm"></div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 mt-4">
+                             <button id="dlZipBtn" class="bg-[#007AFF] text-white text-[16px] font-bold py-3.5 rounded-xl shadow-lg active:scale-[0.98] transition flex items-center justify-center gap-2">
+                                <span>打包下载 (ZIP)</span>
+                            </button>
+                             <button id="dlPartsBtn" class="bg-white text-[#34C759] border border-[#34C759]/30 text-[14px] font-bold py-3 rounded-xl active:scale-95 transition">
+                                逐张下载所有图片 (防漏图)
+                            </button>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <div class="py-10 pb-20 text-center">
+            <div class="space-y-1">
+                <p class="text-xs text-gray-500 font-medium">拼图Ultimate (Pro Max)</p>
+                <p class="text-[10px] text-gray-400">Designed by ikko</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部悬浮按钮 -->
+    <div class="fixed bottom-8 left-0 right-0 px-4 z-40 pointer-events-none">
+        <button id="generateBtn" class="pointer-events-auto w-full max-w-2xl mx-auto bg-white/80 backdrop-blur-md text-black border border-white/40 font-semibold text-[17px] py-3.5 rounded-full shadow-lg active:scale-[0.98] transition flex items-center justify-center gap-2">
+            <span>✨ 开始生成拼图</span>
+        </button>
+    </div>
+
+    <!-- 隐藏的 Canvas -->
+    <canvas id="canvas" class="hidden"></canvas>
+    
+    <!-- 操作面板 Sheet -->
+    <div id="imageActionOverlay" class="modal-overlay"></div>
+    <div id="imageActionSheet" class="action-sheet">
+        <div class="text-center text-gray-400 text-sm mb-4 font-medium">图片操作</div>
+        <div class="space-y-3">
+            <button id="actionReplace" class="w-full bg-white text-[#007AFF] font-bold text-[17px] py-3.5 rounded-xl shadow-sm active:bg-gray-50">替换图片</button>
+            <button id="actionDelete" class="w-full bg-white text-[#FF3B30] font-bold text-[17px] py-3.5 rounded-xl shadow-sm active:bg-gray-50">删除图片</button>
+        </div>
+        <button id="actionCancel" class="w-full bg-white text-black font-semibold text-[17px] py-3.5 rounded-xl shadow-sm mt-4 active:bg-gray-50">取消</button>
+    </div>
+
+    <!-- 权限修复悬浮球 (可拖拽) -->
+    <div id="permissionFixBtn" class="fixed top-[70px] right-[20px] z-[999] cursor-move transition-opacity duration-300">
+        <button id="permTrigger" class="bg-[#007AFF] text-white px-3 py-2 rounded-full text-xs font-bold shadow-lg flex items-center gap-1 active:scale-95">
+             ⚠️ 开启批量下载权限
+        </button>
+    </div>
+
+    <!-- 预览大图 Modal -->
+    <div id="previewModal" class="modal-overlay" onclick="this.style.display='none'">
+        <div class="bg-white p-2 rounded-xl overflow-hidden shadow-2xl relative flex items-center justify-center flex-col max-w-[90%] max-h-[80%]" onclick="event.stopPropagation()">
+            <img id="previewModalImg" class="object-contain max-w-full max-h-[70vh]">
+            <button onclick="document.getElementById('previewModal').style.display='none'" class="absolute top-2 right-2 bg-black/50 text-white rounded-full w-8 h-8 flex items-center justify-center">×</button>
+        </div>
+    </div>
+
+    <!-- 脚本逻辑 -->
+    <script src="app.js"></script>
+</body>
+</html>
