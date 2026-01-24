@@ -1,0 +1,97 @@
+/* --- 基础样式 --- */
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background-color: #F2F2F7;
+    color: #000000;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+}
+
+/* 隐藏滚动条 */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* iOS 卡片样式 */
+.ios-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    margin-bottom: 20px;
+    contain: content;
+}
+
+/* 列表分割线 */
+.ios-divide > div:not(:last-child), 
+.ios-divide > label:not(:last-child),
+.ios-divide > details > .divide-y > div:not(:last-child) { 
+    border-bottom: 0.5px solid #C6C6C8;
+}
+
+/* 输入框重置与修复 */
+input[type=number], select, input[type=text] { 
+    appearance: none;
+    -webkit-appearance: none; 
+    background: transparent; 
+}
+/* 修复：确保输入框可点击区域足够大 */
+input[type=number]:focus {
+    background-color: rgba(0, 122, 255, 0.05);
+    border-radius: 4px;
+}
+
+/* iOS 滑动条 */
+input[type=range] { 
+    -webkit-appearance: none;
+    width: 100%; background: transparent; height: 24px; margin: 0; padding: 0; cursor: pointer;
+}
+input[type=range]::-webkit-slider-runnable-track { 
+    width: 100%; height: 4px; background: #E5E5EA; border-radius: 2px; border: none;
+}
+input[type=range]::-webkit-slider-thumb { 
+    -webkit-appearance: none; height: 22px; width: 22px; border-radius: 50%; background: #ffffff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15); border: 0.5px solid rgba(0,0,0,0.04); margin-top: -9px; transition: transform 0.1s;
+}
+input[type=range]:active::-webkit-slider-thumb { transform: scale(1.1); }
+
+/* 动画与模态框 */
+.modal-overlay { 
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+    z-index: 100; display: none; align-items: center; justify-content: center; 
+}
+.action-sheet { 
+    position: fixed; bottom: 0; left: 0; right: 0; background: #F2F2F7;
+    border-top-left-radius: 16px; border-top-right-radius: 16px; 
+    transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
+    z-index: 101; padding: 20px; padding-bottom: 40px;
+}
+.action-sheet.show { transform: translateY(0); }
+
+/* 拖拽上传遮罩 */
+#dragOverlay {
+    position: fixed;
+    inset: 0; background: rgba(0,122,255,0.1); backdrop-filter: blur(2px);
+    z-index: 999; display: none; justify-content: center; align-items: center;
+    border: 4px dashed #007AFF; margin: 10px;
+    border-radius: 20px; pointer-events: none;
+}
+#dragOverlay.active { display: flex; }
+
+/* Sortable */
+.sortable-ghost { opacity: 0.4; background: #E5E5EA; } 
+
+/* 性能优化类 */
+#imageGrid {
+    content-visibility: auto;
+    contain-intrinsic-size: 300px;
+}
+.thumbnail-item { 
+    contain: paint layout;
+}
+
+/* 拖拽按钮样式 */
+.draggable {
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+}
